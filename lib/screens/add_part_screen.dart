@@ -126,6 +126,7 @@ class _State extends State<AddPartScreen> {
       final path = 'parts/$partId/detail-${_existing.length}.jpg';
       final bytes = await _newPhoto!.readAsBytes();
       final photoRow = {
+        'id': const Uuid().v4(),
         'owner_type': 'part',
         'owner_id': partId,
         'kind': 'detail',
@@ -147,7 +148,11 @@ class _State extends State<AddPartScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Редактировать деталь' : 'Новая деталь')),
-      body: Form(
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Form(
         key: _form,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -235,6 +240,8 @@ class _State extends State<AddPartScreen> {
               child: Text(_saving ? 'Сохранение…' : 'Сохранить'),
             ),
           ],
+        ),
+        ),
         ),
       ),
     );

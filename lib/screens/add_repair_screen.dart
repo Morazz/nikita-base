@@ -212,7 +212,11 @@ class _State extends State<AddRepairScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Ремонт: ${e.name}')),
-      body: Form(
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Form(
         key: _form,
         autovalidateMode: AutovalidateMode.onUserInteraction,
         child: ListView(
@@ -298,6 +302,8 @@ class _State extends State<AddRepairScreen> {
               child: Text(_saving ? 'Сохранение…' : 'Сохранить запись'),
             ),
           ],
+        ),
+        ),
         ),
       ),
     );

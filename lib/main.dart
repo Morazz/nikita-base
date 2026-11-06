@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'local_db.dart';
 import 'screens/home_screen.dart';
@@ -8,17 +10,36 @@ import 'sync_service.dart';
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 final navigatorKey = GlobalKey<NavigatorState>();
 
-// Вместо «серого экрана» показываем диалог с текстом ошибки
-void showAppError(Object error) {
+// Вместо «серого экрана» показываем диалог с текстом ошибки.
+// Полный стек пишется в Документы\oborudovanie_errors.log
+void showAppError(Object error, [StackTrace? stack]) async {
+  try {
+    final docs = await getApplicationDocumentsDirectory();
+    final f = File('${docs.path}/oborudovanie_errors.log');
+    await f.writeAsString(
+        '${DateTime.now()}
+$error
+${stack ?? StackTrace.current}
+
+',
+        mode: FileMode.append);
+  } catch (_) {}
   final ctx = navigatorKey.currentContext;
-  if (ctx == null) return;
+  if (ctx == null || !ctx.mounted) return;
   final msg = error.toString();
   showDialog(
     context: ctx,
     builder: (dctx) => AlertDialog(
       title: const Text('Ошибка'),
       content: SingleChildScrollView(
-          child: Text(msg.length > 600 ? msg.substring(0, 600) + '…' : msg)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(msg.length > 400 ? '${msg.substring(0, 400)}…' : msg),
+          const SizedBox(height: 8),
+          Text('Подробности: Документы\oborudovanie_errors.log',
+              style: Theme.of(ctx).textTheme.bodySmall),
+        ]),
+      ),
       actions: [
         FilledButton(
             onPressed: () => Navigator.pop(dctx),
@@ -32,10 +53,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    if (!kDebugMode) showAppError(details.exception);
+    if (!kDebugMode) showAppError(details.exception, details.stack);
   };
   PlatformDispatcher.instance.onError = (error, stack) {
-    if (!kDebugMode) showAppError(error);
+    if (!kDebugMode) showAppError(error, stack);
     return true;
   };
   await LocalDb.init();

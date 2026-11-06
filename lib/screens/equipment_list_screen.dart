@@ -103,7 +103,7 @@ class _State extends State<EquipmentListScreen> {
             )
           : wide
               ? Row(children: [
-                  SizedBox(width: 430, child: list),
+                  SizedBox(width: 500, child: list),
                   const VerticalDivider(width: 1),
                   Expanded(child: _buildDetailPanel()),
                 ])
@@ -131,10 +131,11 @@ class _State extends State<EquipmentListScreen> {
   Widget _buildList(bool wide) {
     return Column(
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
               _chip('Все'),
               ..._sites.map((s) => _chip(s.name, id: s.id)),

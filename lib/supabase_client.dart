@@ -56,7 +56,10 @@ class LocalQuery implements Future<List<dynamic>> {
   LocalQuery(this.table);
 
   LocalQuery select([String cols = '*']) { _cols = cols; return this; }
-  LocalQuery eq(String key, dynamic value) { _eq.add([key, value]); return this; }
+  LocalQuery eq(String key, dynamic value) {
+    if (value != null) _eq.add([key, value]);
+    return this;
+  }
   LocalQuery order(String col, {bool ascending = true, bool nullsFirst = false}) {
     _orderCol = col;
     _asc = ascending;

@@ -204,7 +204,11 @@ class _State extends State<PartDetailScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 780),
+                child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 if (_photos.isNotEmpty)
@@ -279,6 +283,8 @@ class _State extends State<PartDetailScreen> {
                 }),
               ],
             ),
+          ),
+        ),
     );
   }
 }

@@ -113,6 +113,7 @@ class _State extends State<AddEquipmentScreen> {
       final kind = pos == 0 ? 'general' : (pos == 1 ? 'nameplate' : 'extra');
       final path = 'equipment/$equipmentId/$kind-$pos.jpg';
       final photoRow = {
+        'id': const Uuid().v4(),
         'owner_type': 'equipment',
         'owner_id': equipmentId,
         'kind': kind,
@@ -135,7 +136,11 @@ class _State extends State<AddEquipmentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Редактировать' : 'Новое оборудование')),
-      body: _error != null && _sites.isEmpty
+            body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: _error != null && _sites.isEmpty
           ? Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Text('Нет сети и локальных данных площадок', textAlign: TextAlign.center),
@@ -210,6 +215,8 @@ class _State extends State<AddEquipmentScreen> {
                 ],
               ),
             ),
+        ),
+        ),
     );
   }
 }

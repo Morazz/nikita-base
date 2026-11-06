@@ -186,7 +186,7 @@ class _State extends State<PartsListScreen> {
       ),
       body: wide
           ? Row(children: [
-              SizedBox(width: 430, child: list),
+              SizedBox(width: 500, child: list),
               const VerticalDivider(width: 1),
               Expanded(child: _buildDetailPanel()),
             ])
@@ -261,7 +261,15 @@ class _State extends State<PartsListScreen> {
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.builder(
+                  child: _filtered.isEmpty
+                      ? ListView(children: const [
+                          SizedBox(height: 48),
+                          Center(
+                              child: Text('Деталей пока нет\nДобавьте первую кнопкой «+»',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey))),
+                        ])
+                      : ListView.builder(
                     itemCount: _filtered.length,
                     itemBuilder: (context, i) {
                       final p = _filtered[i];
