@@ -17,11 +17,7 @@ void showAppError(Object error, [StackTrace? stack]) async {
     final docs = await getApplicationDocumentsDirectory();
     final f = File('${docs.path}/oborudovanie_errors.log');
     await f.writeAsString(
-        '${DateTime.now()}
-$error
-${stack ?? StackTrace.current}
-
-',
+        '${DateTime.now()}\n$error\n${stack ?? StackTrace.current}\n\n',
         mode: FileMode.append);
   } catch (_) {}
   final ctx = navigatorKey.currentContext;
@@ -36,7 +32,7 @@ ${stack ?? StackTrace.current}
             mainAxisSize: MainAxisSize.min, children: [
           Text(msg.length > 400 ? '${msg.substring(0, 400)}…' : msg),
           const SizedBox(height: 8),
-          Text('Подробности: Документы\oborudovanie_errors.log',
+          Text('Подробности: Документы\\oborudovanie_errors.log',
               style: Theme.of(ctx).textTheme.bodySmall),
         ]),
       ),
