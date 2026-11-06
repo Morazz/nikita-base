@@ -154,7 +154,7 @@ class _State extends State<AddPartScreen> {
           children: [
             if (widget.equipment != null)
               Text('Привязка: ${widget.equipment!.name} ${widget.equipment!.model ?? ''}',
-                  style: const TextStyle(color: Colors.black54)),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             TextFormField(
               controller: _name,
               decoration: const InputDecoration(labelText: 'Наименование *'),

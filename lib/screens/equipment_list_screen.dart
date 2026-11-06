@@ -114,9 +114,10 @@ class _State extends State<EquipmentListScreen> {
   Widget _buildDetailPanel() {
     final sel = _selected;
     if (sel == null) {
-      return const Center(
+      return Center(
           child: Text('Выберите машину в списке слева',
-              style: TextStyle(color: Colors.black45)));
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)));
     }
     final fresh = _equipment.firstWhere((x) => x.id == sel.id, orElse: () => sel);
     return EquipmentDetailScreen(

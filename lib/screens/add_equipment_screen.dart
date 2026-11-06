@@ -189,7 +189,7 @@ class _State extends State<AddEquipmentScreen> {
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Text('Новое фото ${e.key + 1}',
-                                style: const TextStyle(color: Colors.black54)),
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           ),
                         ),
                         IconButton(

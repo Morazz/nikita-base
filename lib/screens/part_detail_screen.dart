@@ -3,6 +3,7 @@ import '../local_db.dart';
 import '../models.dart';
 import '../supabase_client.dart';
 import '../sync_service.dart';
+import '../photo_viewer.dart';
 import 'add_part_screen.dart';
 
 class PartDetailScreen extends StatefulWidget {
@@ -171,11 +172,11 @@ class _State extends State<PartDetailScreen> {
   }
 
   Widget _dim(String label, double? v) => Column(children: [
-        Text(label, style: const TextStyle(color: Colors.black54)),
+        Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         Text(v == null ? '—' : v.toStringAsFixed(
             v == v.roundToDouble() ? 0 : 1),
             style: Theme.of(context).textTheme.titleLarge),
-        const Text('мм', style: TextStyle(color: Colors.black38, fontSize: 12)),
+        Text('мм', style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)),
       ]);
 
   @override
@@ -199,10 +200,13 @@ class _State extends State<PartDetailScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 if (_photos.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LocalImage(_photos.first.storagePath,
-                        height: 160, width: double.infinity),
+                  GestureDetector(
+                    onTap: () => showPhotoViewer(context, _photos, 0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LocalImage(_photos.first.storagePath,
+                          height: 160, width: double.infinity),
+                    ),
                   ),
                 if (p.isBearing) ...[
                   const SizedBox(height: 4),
@@ -220,13 +224,13 @@ class _State extends State<PartDetailScreen> {
                     Text('$_stock',
                         style: Theme.of(context).textTheme.displaySmall),
                     Text('${p.unit} на складе',
-                        style: const TextStyle(color: Colors.black54)),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ]),
                 ),
                 if (_machines.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text('Числится на: ${_machines.join(' · ')}',
-                      style: const TextStyle(color: Colors.black54)),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
                 const SizedBox(height: 12),
                 Row(children: [
@@ -252,7 +256,7 @@ class _State extends State<PartDetailScreen> {
                   };
                   final color = switch (m.type) {
                     'in' => Colors.green,
-                    'out' => Colors.black87,
+                    'out' => Theme.of(context).colorScheme.onSurface,
                     _ => Colors.red,
                   };
                   return ListTile(

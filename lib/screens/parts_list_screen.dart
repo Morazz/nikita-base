@@ -18,6 +18,8 @@ class _State extends State<PartsListScreen> {
   double? _fd;
   double? _fD;
   double? _fB;
+  String _flt = 'Все'; // Все | Подшипники | Дефицит
+  int _sort = 0;       // 0 — по названию, 1 — по остатку
   Part? _selected;
   bool _loading = true;
 
@@ -54,7 +56,9 @@ class _State extends State<PartsListScreen> {
   List<Part> get _filtered {
     final q = _q.trim().toLowerCase();
     final num = double.tryParse(q.replaceAll(',', '.'));
-    return _parts.where((p) {
+    List<Part> rows = _parts.where((p) {
+      if (_flt == 'Подшипники' && !p.isBearing) return false;
+      if (_flt == 'Дефицит' && p.stock > 2) return false;
       if (_dimFilter) {
         if (!p.isBearing) return false;
         bool ok = true;
@@ -73,6 +77,9 @@ class _State extends State<PartsListScreen> {
       }
       return false;
     }).toList();
+    if (_sort == 1) rows.sort((a, b) => a.stock.compareTo(b.stock));
+    else rows.sort((a, b) => a.name.compareTo(b.name));
+    return rows;
   }
 
   void _onDetailChanged() {
@@ -116,7 +123,7 @@ class _State extends State<PartsListScreen> {
           ),
           const SizedBox(height: 8),
           const Text('Можно заполнить не все поля',
-              style: TextStyle(color: Colors.black54, fontSize: 12)),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
         ]),
         actions: [
           TextButton(
@@ -150,6 +157,17 @@ class _State extends State<PartsListScreen> {
       appBar: AppBar(
         title: const Text('Детали'),
         actions: [
+          PopupMenuButton<int>(
+            tooltip: 'Сортировка',
+            icon: const Icon(Icons.sort),
+            onSelected: (v) => setState(() => _sort = v),
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                  value: 0, checked: _sort == 0, child: const Text('По названию')),
+              CheckedPopupMenuItem(
+                  value: 1, checked: _sort == 1, child: const Text('По остатку')),
+            ],
+          ),
           IconButton(
             tooltip: 'Подбор по размерам',
             icon: Icon(_dimFilter ? Icons.tune : Icons.tune_outlined),
@@ -179,9 +197,10 @@ class _State extends State<PartsListScreen> {
   Widget _buildDetailPanel() {
     final sel = _selected;
     if (sel == null) {
-      return const Center(
+      return Center(
           child: Text('Выберите деталь в списке слева',
-              style: TextStyle(color: Colors.black45)));
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)));
     }
     final fresh = _parts.firstWhere((x) => x.id == sel.id, orElse: () => sel);
     return PartDetailScreen(
@@ -203,6 +222,18 @@ class _State extends State<PartsListScreen> {
                 hintText: 'Поиск по названию или артикулу'),
             onChanged: (v) => setState(() => _q = v),
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(children: ['Все', 'Подшипники', 'Дефицит'].map((f) =>
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(f),
+                  selected: _flt == f,
+                  onSelected: (_) => setState(() => _flt = f),
+                ),
+              )).toList()),
         ),
         if (_dimFilter)
           Padding(

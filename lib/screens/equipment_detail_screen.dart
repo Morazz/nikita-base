@@ -4,6 +4,7 @@ import '../models.dart';
 import '../supabase_client.dart';
 import '../sync_service.dart';
 import 'add_equipment_screen.dart';
+import '../photo_viewer.dart';
 import 'add_part_screen.dart';
 import 'add_repair_screen.dart';
 import 'part_detail_screen.dart';
@@ -296,10 +297,14 @@ class _State extends State<EquipmentDetailScreen> {
                       scrollDirection: Axis.horizontal,
                       itemCount: _photos.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) => ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LocalImage(_photos[i].storagePath,
-                            width: 140, height: 140),
+                      itemBuilder: (_, i) => GestureDetector(
+                        onTap: () =>
+                            showPhotoViewer(context, _photos, i),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LocalImage(_photos[i].storagePath,
+                              width: 140, height: 140),
+                        ),
                       ),
                     ),
                   ),
@@ -382,7 +387,7 @@ class _State extends State<EquipmentDetailScreen> {
                                   final part = p['parts'] as Map<String, dynamic>;
                                   return '${part['name']} × ${p['qty']}';
                                 }).join(' · '),
-                                    style: const TextStyle(color: Colors.black54)),
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           ),
                         ),
@@ -408,7 +413,7 @@ class _State extends State<EquipmentDetailScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: Colors.black54)),
+            Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             Flexible(child: Text(value, textAlign: TextAlign.right)),
           ],
         ),
