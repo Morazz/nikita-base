@@ -60,12 +60,19 @@ class _State extends State<HomeScreen> {
                   tooltip: 'Экспорт базы (zip)',
                   icon: const Icon(Icons.upload),
                   onPressed: () async {
-                    final path = await BackupService.exportBackup(context);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(path == null
-                              ? 'Экспорт отменён'
-                              : 'Копия сохранена: $path')));
+                    try {
+                      final path = await BackupService.exportBackup(context);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(path == null
+                                ? 'Экспорт отменён'
+                                : 'Копия сохранена: $path')));
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Ошибка экспорта: $e')));
+                      }
                     }
                   },
                 ),
@@ -73,7 +80,16 @@ class _State extends State<HomeScreen> {
                   tooltip: 'Импорт базы из zip',
                   icon: const Icon(Icons.download),
                   onPressed: () async {
-                    final ok = await BackupService.importBackup();
+                    bool ok = false;
+                    try {
+                      ok = await BackupService.importBackup();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Ошибка импорта: $e')));
+                      }
+                      return;
+                    }
                     if (!context.mounted) return;
                     if (ok) {
                       SyncService.syncAll();

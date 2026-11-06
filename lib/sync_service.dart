@@ -90,6 +90,15 @@ class SyncService {
     });
   }
 
+  // Ошибки данных (не «офлайн») — не кладём в очередь, а пробрасываем
+  static bool _isDataError(Object e) {
+    final msg = e.toString();
+    return msg.contains('Недостаточно') ||
+        msg.contains('UNIQUE constraint') ||
+        msg.contains('not null') ||
+        msg.contains('CHECK constraint');
+  }
+
   // Сохранить в сеть; при неудаче — поставить в очередь (true = было в offline)
   static Future<bool> saveOrQueue(String table, Map<String, dynamic> data,
       {String? updateId}) async {
@@ -100,7 +109,8 @@ class SyncService {
         await supabase.from(table).insert(data);
       }
       return false;
-    } catch (_) {
+    } catch (e) {
+      if (_isDataError(e)) rethrow;
       if (updateId != null) {
         queue(table, 'update', data, id: updateId);
       } else {

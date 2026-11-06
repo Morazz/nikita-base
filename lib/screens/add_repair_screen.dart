@@ -189,7 +189,15 @@ class _State extends State<AddRepairScreen> {
         'comment': 'ремонт: ${e.name} ${e.model ?? ''}',
         'created_at': DateTime.now().toIso8601String(),
       };
-      final movedOffline = await SyncService.saveOrQueue('part_movements', moveRow);
+      bool movedOffline;
+      try {
+        movedOffline = await SyncService.saveOrQueue('part_movements', moveRow);
+      } catch (e) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Списание отклонено: $e')));
+        return;
+      }
       if (movedOffline || wasOffline) {
         LocalDb.movements.put(moveRow['id'], moveRow);
         LocalDb.stock.put(

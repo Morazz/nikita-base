@@ -123,7 +123,15 @@ class _State extends State<PartDetailScreen> {
       'comment': comment.text.trim(),
       'created_at': DateTime.now().toIso8601String(),
     };
-    final wasOffline = await SyncService.saveOrQueue('part_movements', data);
+    final bool wasOffline;
+    try {
+      wasOffline = await SyncService.saveOrQueue('part_movements', data);
+    } catch (e) {
+      // ошибка данных (например, недостаток на складе) — показываем и выходим
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Операция отклонена: $e')));
+      return;
+    }
     if (wasOffline) {
       // обновляем локальное состояние сразу
       LocalDb.movements.put(data['id'], data);

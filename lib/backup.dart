@@ -45,7 +45,12 @@ class BackupService {
     if (path == null) return false;
 
     final bytes = await File(path).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
+    Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } catch (_) {
+      return false; // битый/не zip
+    }
 
     ArchiveFile? dbEntry;
     for (var f in archive.files) {
@@ -67,8 +72,11 @@ class BackupService {
       if (await photoDir.exists()) await photoDir.delete(recursive: true);
       await photoDir.create(recursive: true);
       for (var f in archive.files) {
+        // защита от path traversal (имена вида ../../)
+        final name = f.name.replaceAll('\\', '/');
+        if (name.contains('..')) continue;
         if (f.isFile && f.name != 'oborudovanie.db') {
-          final out = File('${photoDir.path}/${f.name}');
+          final out = File('${photoDir.path}/$name');
           await out.parent.create(recursive: true);
           await out.writeAsBytes(f.content as List<int>);
         }
