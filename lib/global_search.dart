@@ -34,17 +34,17 @@ class _State extends State<GlobalSearchDialog> {
     final all = LocalDb.all(LocalDb.parts);
     final q = _q.trim().toLowerCase();
     if (q.isEmpty) return [];
-    final num = double.tryParse(q.replaceAll(',', '.'));
+    final size = double.tryParse(q.replaceAll(',', '.'));
     return all.where((e) {
       if ((e['name'] ?? '').toString().toLowerCase().contains(q) ||
           (e['article'] ?? '').toString().toLowerCase().contains(q) ||
           (e['bearing_type'] ?? '').toString().toLowerCase().contains(q)) {
         return true;
       }
-      if (num != null) {
+      if (size != null) {
         for (var k in ['inner_d', 'outer_d', 'width_b']) {
           final v = e[k];
-          if (v != null && ((v as num) - num).abs() < 0.001) return true;
+          if (v != null && ((v as num) - size).abs() < 0.001) return true;
         }
       }
       return false;

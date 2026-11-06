@@ -131,14 +131,22 @@ class LocalQuery {
       final rows = await d.rawQuery(
         'select parts.* from parts join machine_parts mp on mp.part_id = parts.id'
         '$_where$_orderBy', _whereArgs);
-      return [{'parts': Map<String, dynamic>.from(rows.first)} for (var r in rows)];
+      final result1 = <Map<String, dynamic>>[];
+      for (var r in rows) {
+        result1.add({'parts': Map<String, dynamic>.from(r)});
+      }
+      return result1;
     }
     if (table == 'machine_parts' && _cols == 'equipment(name, model)') {
       final rows = await d.rawQuery(
         'select equipment.name, equipment.model from equipment'
         ' join machine_parts mp on mp.equipment_id = equipment.id'
         '$_where$_orderBy', _whereArgs);
-      return [{'equipment': Map<String, dynamic>.from(r)} for (r in rows)];
+      final result2 = <Map<String, dynamic>>[];
+      for (var r in rows) {
+        result2.add({'equipment': Map<String, dynamic>.from(r)});
+      }
+      return result2;
     }
     if (table == 'repair_records' && _cols.contains('repair_parts(')) {
       final rows = await d.rawQuery(
@@ -194,7 +202,7 @@ class _LocalImageState extends State<LocalImage> {
 
   Future<void> _load() async {
     final b = await LocalSql.readPhoto(widget.storagePath);
-    if (mounted) setState(() => _bytes = b?.asUint8List());
+    if (mounted) setState(() => _bytes = b == null ? null : Uint8List.fromList(b));
   }
 
   @override

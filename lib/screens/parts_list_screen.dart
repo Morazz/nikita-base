@@ -122,7 +122,7 @@ class _State extends State<PartsListScreen> {
             decoration: const InputDecoration(labelText: 'B (ширина), мм'),
           ),
           const SizedBox(height: 8),
-          const Text('Можно заполнить не все поля',
+          Text('Можно заполнить не все поля',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
         ]),
         actions: [

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'local_sql.dart';
 import 'models.dart';
@@ -92,7 +93,7 @@ class _ViewerImageState extends State<_ViewerImage> {
     }
     return InteractiveViewer(
       maxScale: 5,
-      child: Image.memory(b.asUint8List(), fit: BoxFit.contain),
+      child: Image.memory(Uint8List.fromList(b), fit: BoxFit.contain),
     );
   }
 }

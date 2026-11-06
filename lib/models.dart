@@ -71,9 +71,12 @@ class Photo {
   final String id;
   final String kind; // general | nameplate | extra
   final String storagePath;
-  Photo({required this.id, required this.kind, required this.storagePath});
+  final int position;
+  Photo({required this.id, required this.kind, required this.storagePath,
+      this.position = 0});
   factory Photo.fromMap(Map<String, dynamic> m) =>
-      Photo(id: m['id'], kind: m['kind'], storagePath: m['storage_path']);
+      Photo(id: m['id'], kind: m['kind'], storagePath: m['storage_path'],
+          position: m['position'] ?? 0);
 }
 
 class Repair {
