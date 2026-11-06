@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../backup.dart';
 import '../global_search.dart';
 import '../main.dart';
 import 'equipment_list_screen.dart';
@@ -52,6 +53,48 @@ class _State extends State<HomeScreen> {
                       icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
                       onPressed: toggleTheme,
                     );
+                  },
+                ),
+                const SizedBox(height: 12),
+                IconButton(
+                  tooltip: 'Экспорт базы (zip)',
+                  icon: const Icon(Icons.upload),
+                  onPressed: () async {
+                    final path = await BackupService.exportBackup(context);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(path == null
+                              ? 'Экспорт отменён'
+                              : 'Копия сохранена: $path')));
+                    }
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Импорт базы из zip',
+                  icon: const Icon(Icons.download),
+                  onPressed: () async {
+                    final ok = await BackupService.importBackup();
+                    if (!context.mounted) return;
+                    if (ok) {
+                      SyncService.syncAll();
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('База импортирована'),
+                          content: const Text(
+                              'Данные восстановлены из копии. Перезапустите программу, чтобы всё обновилось.'),
+                          actions: [
+                            FilledButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Понятно')),
+                          ],
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Импорт отменён или файл не является копией базы')));
+                    }
                   },
                 ),
               ]),

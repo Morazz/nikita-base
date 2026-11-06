@@ -80,6 +80,13 @@ class LocalSql {
     return _db!;
   }
 
+  // Закрыть соединение (нужно перед копированием/заменой файла базы)
+  static Future<void> close() async {
+    final d = _db;
+    _db = null;
+    if (d != null) await d.close();
+  }
+
   static File photoFile(String storagePath) =>
       File(p.join(_photoDir!.path, storagePath));
 
