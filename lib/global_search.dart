@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'local_db.dart';
-import 'models.dart';
-import 'screens/equipment_detail_screen.dart';
-import 'screens/part_detail_screen.dart';
+import '../models.dart';
+import '../supabase_client.dart';
+import 'equipment_detail_screen.dart';
+import 'part_detail_screen.dart';
 
-// Глобальный поиск: машины, детали, артикулы, размеры подшипников
+// Глобальный поиск: машины, детали, артикулы, размеры подшипников.
+// Читает напрямую из базы — всегда свежие данные.
 Future<void> showGlobalSearch(BuildContext context) async {
   await showDialog(context: context, builder: (_) => const GlobalSearchDialog());
 }
@@ -17,40 +18,57 @@ class GlobalSearchDialog extends StatefulWidget {
 
 class _State extends State<GlobalSearchDialog> {
   String _q = '';
+  List<Equipment> _equipment = [];
+  List<Part> _parts = [];
 
-  List<Equipment> get _machines {
-    final all = LocalDb.all(LocalDb.equipment);
-    final q = _q.trim().toLowerCase();
-    if (q.isEmpty) return [];
-    return all.where((e) =>
-        (e['name'] ?? '').toString().toLowerCase().contains(q) ||
-        (e['model'] ?? '').toString().toLowerCase().contains(q) ||
-        (e['serial_number'] ?? '').toString().toLowerCase().contains(q) ||
-        (e['location'] ?? '').toString().toLowerCase().contains(q)).map((e) =>
-        Equipment.fromMap(e)).toList();
+  @override
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  List<Part> get _parts {
-    final all = LocalDb.all(LocalDb.parts);
+  Future<void> _load() async {
+    try {
+      final eq = await supabase.from('equipment').select().order('name');
+      final pr = await supabase.from('parts').select().order('name');
+      final stock = await fetchStock();
+      if (!mounted) return;
+      setState(() {
+        _equipment =
+            (eq as List).map((e) => Equipment.fromMap(e)).toList();
+        _parts = (pr as List).map((e) {
+          e['stock'] = stock[e['id']] ?? 0;
+          return Part.fromMap(e);
+        }).toList();
+      });
+    } catch (_) {}
+  }
+
+  List<Equipment> get _machines {
+    final q = _q.trim().toLowerCase();
+    if (q.isEmpty) return [];
+    return _equipment.where((e) => !e.isArchived && (
+        e.name.toLowerCase().contains(q) ||
+        (e.model ?? '').toLowerCase().contains(q) ||
+        (e.brand ?? '').toLowerCase().contains(q) ||
+        (e.serialNumber ?? '').toLowerCase().contains(q) ||
+        (e.location ?? '').toLowerCase().contains(q))).toList();
+  }
+
+  List<Part> get _foundParts {
     final q = _q.trim().toLowerCase();
     if (q.isEmpty) return [];
     final size = double.tryParse(q.replaceAll(',', '.'));
-    return all.where((e) {
-      if ((e['name'] ?? '').toString().toLowerCase().contains(q) ||
-          (e['article'] ?? '').toString().toLowerCase().contains(q) ||
-          (e['bearing_type'] ?? '').toString().toLowerCase().contains(q)) {
-        return true;
-      }
+    return _parts.where((p) {
+      if (p.name.toLowerCase().contains(q) ||
+          (p.article ?? '').toLowerCase().contains(q) ||
+          (p.bearingType ?? '').toLowerCase().contains(q)) return true;
       if (size != null) {
-        for (var k in ['inner_d', 'outer_d', 'width_b']) {
-          final v = e[k];
-          if (v != null && ((v as num) - size).abs() < 0.001) return true;
+        for (var v in [p.innerD, p.outerD, p.widthB]) {
+          if (v != null && (v - size).abs() < 0.001) return true;
         }
       }
       return false;
-    }).map((e) {
-      e['stock'] = LocalDb.stock.get(e['id']) ?? 0;
-      return Part.fromMap(e);
     }).toList();
   }
 
@@ -62,7 +80,7 @@ class _State extends State<GlobalSearchDialog> {
   @override
   Widget build(BuildContext context) {
     final ms = _machines;
-    final ps = _parts;
+    final ps = _foundParts;
     return Dialog(
       child: SizedBox(
         width: 620, height: 480,
