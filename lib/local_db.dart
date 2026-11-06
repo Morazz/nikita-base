@@ -1,60 +1,147 @@
-import 'dart:typed_data';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-// Локальная база (кэш + очередь синхронизации). Работает в вебе и на телефоне.
+// Локальная SQLite-база. Полностью автономная, интернет не нужен.
 class LocalDb {
-  static late Box<Map<dynamic, dynamic>> sites;
-  static late Box<Map<dynamic, dynamic>> equipment;
-  static late Box<Map<dynamic, dynamic>> parts;
-  static late Box<Map<dynamic, dynamic>> photos;
-  static late Box<Map<dynamic, dynamic>> repairs;
-  static late Box<Map<dynamic, dynamic>> movements;
-  static late Box<Map<dynamic, dynamic>> machineParts;
-  static late Box<int> stock;
-  static late Box<Map<dynamic, dynamic>> outbox;      // очередь операций
-  static late Box<Uint8List> pendingPhotos;           // фото, ждущие загрузки
+  static Database? _db;
+  static Directory? _photoDir;
 
-  static Future<void> init() async {
-    await Hive.initFlutter();
-    sites = await Hive.openBox('sites');
-    equipment = await Hive.openBox('equipment');
-    parts = await Hive.openBox('parts');
-    photos = await Hive.openBox('photos');
-    repairs = await Hive.openBox('repairs');
-    movements = await Hive.openBox('movements');
-    machineParts = await Hive.openBox('machine_parts');
-    stock = await Hive.openBox('stock');
-    outbox = await Hive.openBox('outbox');
-    pendingPhotos = await Hive.openBox('pending_photos');
-  }
-
-  static List<Map<String, dynamic>> all(Box<Map<dynamic, dynamic>> box) =>
-      box.values.map((e) => Map<String, dynamic>.from(e)).toList();
-
-  static void replaceAll(Box<Map<dynamic, dynamic>> box, List<dynamic> rows) {
-    box.clear();
-    for (var r in rows) {
-      final m = Map<String, dynamic>.from(r as Map);
-      box.put(m['id'], m);
+  static Future<Database> db() async {
+    if (_db != null) return _db!;
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    final docs = await getApplicationDocumentsDirectory();
+    _photoDir = Directory(p.join(docs.path, 'oborudovanie_photos'));
+    await _photoDir!.create(recursive: true);
+    final path = p.join(docs.path, 'oborudovanie.db');
+    _db = await databaseFactory.openDatabase(path);
+    await _db!.execute(\"\"\"
+      create table if not exists sites (
+        id text primary key, name text not null unique, note text, created_at text
+      );
+      create table if not exists equipment (
+        id text primary key, site_id text not null, name text not null,
+        brand text, model text, serial_number text, manufacturer text,
+        year integer, location text, comment text,
+        status text not null default 'active', created_at text
+      );
+      create table if not exists parts (
+        id text primary key, name text not null, article text,
+        manufacturer text, comment text, unit text not null default 'шт',
+        is_bearing integer not null default 0, bearing_type text,
+        inner_d real, outer_d real, width_b real, created_at text
+      );
+      create table if not exists photos (
+        id text primary key, owner_type text not null, owner_id text not null,
+        kind text not null, storage_path text not null,
+        position integer not null default 0, created_at text
+      );
+      create table if not exists machine_parts (
+        equipment_id text not null, part_id text not null,
+        created_at text, primary key (equipment_id, part_id)
+      );
+      create table if not exists part_movements (
+        id text primary key, part_id text not null,
+        type text not null check (type in ('in','out','writeoff')),
+        qty integer not null, equipment_id text, repair_id text,
+        comment text, created_at text
+      );
+      create table if not exists repair_records (
+        id text primary key, equipment_id text not null, date text not null,
+        description text not null, comment text, created_at text
+      );
+      create table if not exists repair_parts (
+        repair_id text not null, part_id text not null, qty integer not null,
+        primary key (repair_id, part_id)
+      );
+      create view if not exists part_stock as
+        select p.id as part_id,
+          coalesce(sum(case m.type when 'in' then m.qty else -m.qty end), 0) as stock
+        from parts p left join part_movements m on m.part_id = p.id
+        group by p.id;
+      create trigger if not exists trg_check_stock after insert on part_movements
+      begin
+        select case when (
+          select coalesce(sum(case type when 'in' then qty else -qty end), 0)
+          from part_movements where part_id = new.part_id) < 0
+        then raise(abort, 'Недостаточно деталей на складе') end;
+      end;
+    \"\"\");
+    // три площадки при первом запуске
+    final n = await _db!.rawQuery('select count(*) c from sites');
+    if ((n.first['c'] as int) == 0) {
+      final now = DateTime.now().toIso8601String();
+      var i = 0;
+      for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
+        i++;
+        await _db!.insert('sites', {
+          'id': 'seed-$i',
+          'name': name, 'created_at': now,
+        });
+      }
     }
+    return _db!;
   }
 
-  static void replaceMachineParts(List<dynamic> rows) {
-    machineParts.clear();
-    for (var r in rows) {
-      final m = Map<String, dynamic>.from(r as Map);
-      machineParts.put('${m['equipment_id']}_${m['part_id']}', m);
+  static Directory get photoDir => _photoDir!;
+
+  // ---------- фото ----------
+  static File photoFile(String storagePath) =>
+      File(p.join(_photoDir!.path, storagePath));
+
+  static Future<void> savePhoto(String storagePath, List<int> bytes) async {
+    final f = photoFile(storagePath);
+    await f.parent.create(recursive: true);
+    await f.writeAsBytes(bytes);
+  }
+
+  static Future<List<int>?> readPhoto(String storagePath) async {
+    final f = photoFile(storagePath);
+    return await f.exists() ? await f.readAsBytes() : null;
+  }
+
+  static Future<void> removePhoto(String storagePath) async {
+    final f = photoFile(storagePath);
+    if (await f.exists()) await f.delete();
+  }
+
+  // ---------- каскадные удаления ----------
+  static Future<void> deleteEquipment(String id) async {
+    final d = await db();
+    await d.delete('photos',
+        where: \"owner_type='equipment' and owner_id=?\", whereArgs: [id]);
+    await d.delete('part_movements', where: 'equipment_id=?', whereArgs: [id]);
+    final repairs = await d.rawQuery(
+        'select id from repair_records where equipment_id=?', [id]);
+    for (var r in repairs) {
+      await d.delete('repair_parts',
+          where: 'repair_id=?', whereArgs: [r['id']]);
+      await d.delete('part_movements',
+          where: 'repair_id=?', whereArgs: [r['id']]);
     }
+    await d.delete('repair_records', where: 'equipment_id=?', whereArgs: [id]);
+    await d.delete('machine_parts', where: 'equipment_id=?', whereArgs: [id]);
+    await d.delete('equipment', where: 'id=?', whereArgs: [id]);
   }
 
-  static void replaceStock(List<dynamic> rows) {
-    stock.clear();
-    for (var r in rows) {
-      stock.put(r['part_id'] as String, (r['stock'] as num).toInt());
-    }
+  static Future<void> deletePart(String id) async {
+    final d = await db();
+    await d.delete('photos',
+        where: \"owner_type='part' and owner_id=?\", whereArgs: [id]);
+    await d.delete('part_movements', where: 'part_id=?', whereArgs: [id]);
+    await d.delete('repair_parts', where: 'part_id=?', whereArgs: [id]);
+    await d.delete('machine_parts', where: 'part_id=?', whereArgs: [id]);
+    await d.delete('parts', where: 'id=?', whereArgs: [id]);
   }
 
-  // Следующий ключ очереди
-  static int nextOutboxKey() =>
-      outbox.keys.fold<int>(0, (m, k) => (k as int) > m ? k as int : m) + 1;
+  static Future<void> deleteRepair(String id) async {
+    final d = await db();
+    await d.delete('photos',
+        where: \"owner_type='repair' and owner_id=?\", whereArgs: [id]);
+    await d.delete('part_movements', where: 'repair_id=?', whereArgs: [id]);
+    await d.delete('repair_parts', where: 'repair_id=?', whereArgs: [id]);
+    await d.delete('repair_records', where: 'id=?', whereArgs: [id]);
+  }
 }

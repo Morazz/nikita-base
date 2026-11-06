@@ -201,7 +201,9 @@ class _LocalImageState extends State<LocalImage> {
   Widget build(BuildContext context) {
     return _bytes == null
         ? Container(
-            width: widget.width, height: widget.height, color: Colors.black12)
+            width: widget.width,
+            height: widget.height,
+            color: Theme.of(context).colorScheme.surfaceVariant)
         : Image.memory(_bytes!,
             width: widget.width, height: widget.height, fit: BoxFit.cover);
   }
