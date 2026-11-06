@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models.dart';
 import '../supabase_client.dart';
-import 'equipment_detail_screen.dart';
-import 'part_detail_screen.dart';
+import 'screens/equipment_detail_screen.dart';
+import 'screens/part_detail_screen.dart';
 
 // Глобальный поиск: машины, детали, артикулы, размеры подшипников.
 // Читает напрямую из базы — всегда свежие данные.
