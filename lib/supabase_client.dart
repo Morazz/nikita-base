@@ -41,7 +41,10 @@ class LocalStorageBucket {
   String getPublicUrl(String path) => path; // в локальном режиме не используется
 }
 
-class LocalQuery {
+// Реализуем Future<List<dynamic>>, чтобы `await supabase.from(...)...`
+// работал как с настоящим Supabase. Операции insert/update/delete
+// выполняются при первом await.
+class LocalQuery implements Future<List<dynamic>> {
   final String table;
   String _cols = '*';
   final List<List<dynamic>> _eq = [];
@@ -89,10 +92,27 @@ class LocalQuery {
     return rows.isEmpty ? null : rows.first as Map<String, dynamic>;
   }
 
-  // await работает с любым объектом, у которого есть then
+  @override
   Future<R> then<R>(FutureOr<R> Function(List<dynamic>) onValue,
           {Function? onError}) =>
       _run().then(onValue, onError: onError);
+
+  @override
+  Future<List<dynamic>> catchError(Function onError,
+          {bool Function(Object error)? test}) =>
+      _run().catchError(onError, test: test);
+
+  @override
+  Future<List<dynamic>> whenComplete(FutureOr<void> Function() action) =>
+      _run().whenComplete(action);
+
+  @override
+  Stream<List<dynamic>> asStream() => _run().asStream();
+
+  @override
+  Future<List<dynamic>> timeout(Duration timeLimit,
+          {FutureOr<List<dynamic>> Function()? onTimeout}) =>
+      _run().timeout(timeLimit, onTimeout: onTimeout);
 
   String get _where {
     if (_eq.isEmpty) return '';
