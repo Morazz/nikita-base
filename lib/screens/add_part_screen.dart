@@ -149,7 +149,7 @@ class _State extends State<AddPartScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Редактировать деталь' : 'Новая деталь')),
       body: Align(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.center,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: Form(

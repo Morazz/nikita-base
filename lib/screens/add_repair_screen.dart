@@ -213,7 +213,7 @@ class _State extends State<AddRepairScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('Ремонт: ${e.name}')),
       body: Align(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.center,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: Form(

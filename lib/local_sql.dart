@@ -68,6 +68,17 @@ class LocalSql {
         then raise(abort, 'Недостаточно деталей на складе') end;
       end;
     ''');
+
+    // наследие ранних версий: записи с пустым id восстанавливаем по rowid
+    // (файлы фото не трогаем — только чиним ссылки в базе)
+    await _db!.execute("""
+      update equipment set id = 'fix-' || rowid where id is null;
+      update parts set id = 'fix-' || rowid where id is null;
+      update photos set id = 'fix-' || rowid where id is null;
+      update part_movements set id = 'fix-' || rowid where id is null;
+      update repair_records set id = 'fix-' || rowid where id is null;
+    """);
+
     final now = DateTime.now().toIso8601String();
     var i = 0;
     for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
