@@ -68,14 +68,13 @@ class LocalSql {
         then raise(abort, 'Недостаточно деталей на складе') end;
       end;
     ''');
-    final n = await _db!.rawQuery('select count(*) c from sites');
-    if ((n.first['c'] as int) == 0) {
-      final now = DateTime.now().toIso8601String();
-      var i = 0;
-      for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
-        i++;
-        await _db!.insert('sites', {'id': 'seed-$i', 'name': name, 'created_at': now});
-      }
+    final now = DateTime.now().toIso8601String();
+    var i = 0;
+    for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
+      i++;
+        await _db!.rawInsert(
+          'insert or ignore into sites (id, name, created_at) values (?, ?, ?)',
+          ['seed-$i', name, now]);
     }
     return _db!;
   }
