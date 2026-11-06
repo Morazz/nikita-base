@@ -1,222 +1,196 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:uuid/uuid.dart';
 import '../local_db.dart';
 import '../models.dart';
 import '../supabase_client.dart';
-import '../sync_service.dart';
+import 'add_equipment_screen.dart';
+import 'equipment_detail_screen.dart';
 
-// Универсальный экран: добавление или редактирование оборудования (офлайн-ready)
-class AddEquipmentScreen extends StatefulWidget {
-  final Equipment? equipment; // null = добавление
-  const AddEquipmentScreen({super.key, this.equipment});
+// Десктопная раскладка: слева список, справа карточка выбранной машины
+class EquipmentListScreen extends StatefulWidget {
+  const EquipmentListScreen({super.key});
   @override
-  State<AddEquipmentScreen> createState() => _State();
+  State<EquipmentListScreen> createState() => _State();
 }
 
-class _State extends State<AddEquipmentScreen> {
-  final _form = GlobalKey<FormState>();
-  late final _name = TextEditingController(text: widget.equipment?.name ?? '');
-  late final _brand = TextEditingController(text: widget.equipment?.brand ?? '');
-  late final _model = TextEditingController(text: widget.equipment?.model ?? '');
-  late final _serial = TextEditingController(text: widget.equipment?.serialNumber ?? '');
-  late final _location = TextEditingController(text: widget.equipment?.location ?? '');
-  late final _comment = TextEditingController(text: widget.equipment?.comment ?? '');
+class _State extends State<EquipmentListScreen> {
   List<Site> _sites = [];
-  String? _siteId;
-  List<Photo> _existing = [];
-  final List<XFile> _newPhotos = [];
-  bool _saving = false;
+  List<Equipment> _equipment = [];
+  String _site = 'Все'; // 'Все' | 'Архив' | id площадки
+  Equipment? _selected;
+  bool _loading = true;
   String? _error;
 
-  bool get _isEdit => widget.equipment != null;
+  static const double _kWideBreakpoint = 1000;
 
   @override
   void initState() {
     super.initState();
-    _siteId = widget.equipment?.siteId;
     _load();
   }
 
   Future<void> _load() async {
+    // 1. мгновенно из локального кэша
+    setState(() {
+      _sites = LocalDb.all(LocalDb.sites).map((e) => Site.fromMap(e)).toList();
+      _equipment =
+          LocalDb.all(LocalDb.equipment).map((e) => Equipment.fromMap(e)).toList();
+      _loading = false;
+    });
+    // 2. свежие данные из сети/локальной базы
     try {
-      final rows = await supabase.from('sites').select().order('name');
-      setState(() => _sites = (rows as List).map((e) => Site.fromMap(e)).toList());
-      if (_isEdit) {
-        final photos = await supabase.from('photos')
-            .select().eq('owner_type', 'equipment').eq('owner_id', widget.equipment!.id)
-            .order('position');
-        setState(() => _existing = (photos as List).map((e) => Photo.fromMap(e)).toList());
-      }
+      final sites = await supabase.from('sites').select();
+      final eq = await supabase.from('equipment').select().order('name');
+      setState(() {
+        _sites = (sites as List).map((e) => Site.fromMap(e)).toList();
+        _equipment = (eq as List).map((e) => Equipment.fromMap(e)).toList();
+        _error = null;
+      });
     } catch (e) {
-      setState(() => _error = e.toString());
-    }
-  }
-
-  Future<void> _pickPhotos() async {
-    final picked = await ImagePicker().pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _newPhotos.addAll(picked));
-  }
-
-  Future<void> _deleteExistingPhoto(Photo photo) async {
-    try {
-      await supabase.from('photos').delete().eq('id', photo.id);
-      await supabase.storage.from('photos').remove([photo.storagePath]);
-    } catch (_) {}
-    setState(() => _existing.remove(photo));
-  }
-
-  void _offlineNote() => ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Нет сети: сохранено локально, синхронизируется позже')));
-
-  Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
-    if (_siteId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Выберите площадку')));
-      return;
-    }
-    setState(() => _saving = true);
-    final fields = <String, dynamic>{
-      'site_id': _siteId,
-      'name': _name.text.trim(),
-      'brand': _brand.text.trim(),
-      'model': _model.text.trim(),
-      'serial_number': _serial.text.trim(),
-      'location': _location.text.trim(),
-      'comment': _comment.text.trim(),
-    };
-    String equipmentId;
-    bool wasOffline;
-    if (_isEdit) {
-      equipmentId = widget.equipment!.id;
-      wasOffline = await SyncService.saveOrQueue('equipment', fields, updateId: equipmentId);
-      if (wasOffline) {
-        final local = LocalDb.equipment.get(equipmentId);
-        if (local != null) local.addAll(fields);
+      if (_equipment.isEmpty) {
+        setState(() => _error = 'Нет данных: $e');
       }
+    }
+  }
+
+  List<Equipment> get _filtered {
+    if (_site == 'Архив') return _equipment.where((e) => e.isArchived).toList();
+    return _equipment
+        .where((e) => !e.isArchived && (_site == 'Все' || e.siteId == _site))
+        .toList();
+  }
+
+  void _onDetailChanged() {
+    final id = _selected?.id;
+    _load().then((_) {
+      if (id == null) return;
+      final i = _equipment.indexWhere((x) => x.id == id && !x.isArchived);
+      setState(() => _selected = i >= 0 ? _equipment[i] : null);
+    });
+  }
+
+  void _openDetail(Equipment e, bool wide) {
+    if (wide) {
+      setState(() => _selected = e);
     } else {
-      equipmentId = const Uuid().v4();
-      wasOffline = await SyncService.saveOrQueue('equipment', {...fields, 'id': equipmentId});
-      if (wasOffline) {
-        LocalDb.equipment.put(equipmentId, {
-          ...fields, 'id': equipmentId, 'status': 'active',
-        });
-      }
+      Navigator.push(context, MaterialPageRoute(
+          builder: (_) => EquipmentDetailScreen(equipment: e))).then((_) => _load());
     }
-    if (wasOffline) _offlineNote();
-
-    final base = _existing.length;
-    for (var i = 0; i < _newPhotos.length; i++) {
-      final bytes = await _newPhotos[i].readAsBytes();
-      final pos = base + i;
-      final kind = pos == 0 ? 'general' : (pos == 1 ? 'nameplate' : 'extra');
-      final path = 'equipment/$equipmentId/$kind-$pos.jpg';
-      final photoRow = {
-        'id': const Uuid().v4(),
-        'owner_type': 'equipment',
-        'owner_id': equipmentId,
-        'kind': kind,
-        'storage_path': path,
-        'position': pos,
-      };
-      try {
-        await supabase.storage.from('photos').uploadBinary(path, bytes);
-        await supabase.from('photos').insert(photoRow);
-      } catch (_) {
-        // офлайн: фото ждёт выгрузки, запись о фото уйдёт в очередь
-        LocalDb.pendingPhotos.put(path, bytes);
-        SyncService.queue('photos', 'insert', photoRow);
-      }
-    }
-    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final wide = MediaQuery.of(context).size.width >= _kWideBreakpoint;
+    final list = _buildList(wide);
+
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Редактировать' : 'Новое оборудование')),
-            body: Align(
-        alignment: Alignment.center,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: _error != null && _sites.isEmpty
+      appBar: AppBar(title: const Text('Оборудование')),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_equipment',
+        onPressed: () async {
+          await Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const AddEquipmentScreen()));
+          _load();
+        },
+        child: const Icon(Icons.add),
+      ),
+      body: _error != null && _equipment.isEmpty
           ? Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('Нет сети и локальных данных площадок', textAlign: TextAlign.center),
+                Text('Ошибка загрузки: $_error', textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 FilledButton(onPressed: _load, child: const Text('Повторить')),
               ]),
             )
-          : Form(
-              key: _form,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: _siteId,
-                    decoration: const InputDecoration(labelText: 'Площадка'),
-                    items: _sites
-                        .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
-                        .toList(),
-                    onChanged: (v) => _siteId = v,
-                  ),
-                  TextFormField(
-                    controller: _name,
-                    decoration: const InputDecoration(labelText: 'Наименование *'),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Обязательное поле' : null,
-                  ),
-                  TextFormField(controller: _brand, decoration: const InputDecoration(labelText: 'Марка')),
-                  TextFormField(controller: _model, decoration: const InputDecoration(labelText: 'Модель')),
-                  TextFormField(controller: _serial, decoration: const InputDecoration(labelText: 'Заводской номер')),
-                  TextFormField(controller: _location, decoration: const InputDecoration(labelText: 'Расположение')),
-                  TextFormField(
-                    controller: _comment,
-                    decoration: const InputDecoration(labelText: 'Комментарий / описание'),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 12),
-                  ..._existing.map((ph) => Row(children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: LocalImage(ph.storagePath,
-                                height: 72, width: double.infinity),
+          : wide
+              ? Row(children: [
+                  SizedBox(width: 500, child: list),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _buildDetailPanel()),
+                ])
+              : list,
+    );
+  }
+
+  Widget _buildDetailPanel() {
+    final sel = _selected;
+    if (sel == null) {
+      return Center(
+          child: Text('Выберите машину в списке слева',
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)));
+    }
+    final fresh = _equipment.firstWhere((x) => x.id == sel.id, orElse: () => sel);
+    return EquipmentDetailScreen(
+      key: ValueKey('eq-${fresh.id}'),
+      equipment: fresh,
+      embedded: true,
+      onChanged: _onDetailChanged,
+    );
+  }
+
+  Widget _buildList(bool wide) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              _chip('Все'),
+              ..._sites.map((s) => _chip(s.name, id: s.id)),
+              _chip('Архив'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.builder(
+                    itemCount: _filtered.length,
+                    itemBuilder: (context, i) {
+                      final e = _filtered[i];
+                      final selected = wide && _selected?.id == e.id;
+                      return Container(
+                        color: selected ? Colors.blueGrey.shade50 : null,
+                        child: Opacity(
+                          opacity: e.isArchived ? 0.6 : 1,
+                          child: ListTile(
+                            leading: const Icon(Icons.precision_manufacturing, size: 36),
+                            title: Text(e.name,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text([
+                              [e.brand, e.model].whereType<String>().join(' '),
+                              'зав. № ${e.serialNumber ?? '—'}',
+                              e.location ?? '',
+                            ].where((s) => s.isNotEmpty).join(' · '),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
+                            trailing: e.isArchived
+                                ? const Chip(label: Text('архив'))
+                                : null,
+                            onTap: () => _openDetail(e, wide),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _deleteExistingPhoto(ph),
-                        ),
-                      ])),
-                  ..._newPhotos.asMap().entries.map((e) => Row(children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text('Новое фото ${e.key + 1}',
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => setState(() => _newPhotos.removeAt(e.key)),
-                        ),
-                      ])),
-                  OutlinedButton.icon(
-                    onPressed: _pickPhotos,
-                    icon: const Icon(Icons.photo_camera),
-                    label: const Text('Добавить фото (первое — общий вид, второе — шильд)'),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: _saving ? null : _save,
-                    child: Text(_saving ? 'Сохранение…' : 'Сохранить'),
-                  ),
-                ],
-              ),
-            ),
+                ),
         ),
-        ),
+      ],
+    );
+  }
+
+  Widget _chip(String label, {String? id}) {
+    final value = id ?? label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _site == value,
+        onSelected: (_) => setState(() => _site = value),
+      ),
     );
   }
 }

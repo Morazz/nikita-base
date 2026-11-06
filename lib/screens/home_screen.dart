@@ -126,7 +126,7 @@ class _State extends State<HomeScreen> {
             Expanded(
               child: IndexedStack(
                 index: _tab,
-                children: const [EquipmentListScreen(), PartsListScreen()],
+                children: [EquipmentListScreen(), PartsListScreen()],
               ),
             ),
           ]),
