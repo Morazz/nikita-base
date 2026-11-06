@@ -7,7 +7,10 @@ import 'add_part_screen.dart';
 
 class PartDetailScreen extends StatefulWidget {
   final Part part;
-  const PartDetailScreen({super.key, required this.part});
+  final bool embedded;
+  final VoidCallback? onChanged;
+  const PartDetailScreen({super.key, required this.part,
+      this.embedded = false, this.onChanged});
   @override
   State<PartDetailScreen> createState() => _State();
 }
@@ -128,12 +131,14 @@ class _State extends State<PartDetailScreen> {
       _offlineNote();
     }
     _load();
+    widget.onChanged?.call();
   }
 
   Future<void> _edit() async {
     await Navigator.push(context, MaterialPageRoute(
         builder: (_) => AddPartScreen(part: p)));
     _load();
+    widget.onChanged?.call();
   }
 
   Future<void> _delete() async {
@@ -158,7 +163,11 @@ class _State extends State<PartDetailScreen> {
       LocalDb.parts.delete(p.id);
       _offlineNote();
     }
-    if (mounted) Navigator.pop(context);
+    if (widget.embedded) {
+      widget.onChanged?.call();
+    } else if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Widget _dim(String label, double? v) => Column(children: [

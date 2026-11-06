@@ -10,7 +10,10 @@ import 'part_detail_screen.dart';
 
 class EquipmentDetailScreen extends StatefulWidget {
   final Equipment equipment;
-  const EquipmentDetailScreen({super.key, required this.equipment});
+  final bool embedded;      // true = встроен в мастер-деталь панель
+  final VoidCallback? onChanged;
+  const EquipmentDetailScreen({super.key, required this.equipment,
+      this.embedded = false, this.onChanged});
   @override
   State<EquipmentDetailScreen> createState() => _State();
 }
@@ -97,7 +100,11 @@ class _State extends State<EquipmentDetailScreen> {
       LocalDb.equipment.get(e.id)?['status'] = newStatus;
       _offlineNote();
     }
-    Navigator.pop(context);
+    if (widget.embedded) {
+      widget.onChanged?.call();
+    } else {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _delete() async {
