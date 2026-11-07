@@ -84,19 +84,16 @@ class _State extends State<EquipmentListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Добавить оборудование',
+          icon: const Icon(Icons.add),
+          onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const AddEquipmentScreen()));
+            _load();
+          },
+        ),
         title: const Text('Оборудование'),
-        actions: [
-          IconButton(
-            tooltip: 'Добавить оборудование',
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const AddEquipmentScreen()));
-              _load();
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_equipment',

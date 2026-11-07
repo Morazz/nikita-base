@@ -155,17 +155,17 @@ class _State extends State<PartsListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Добавить деталь',
+          icon: const Icon(Icons.add),
+          onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const AddPartScreen()));
+            _load();
+          },
+        ),
         title: const Text('Детали'),
         actions: [
-          IconButton(
-            tooltip: 'Добавить деталь',
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const AddPartScreen()));
-              _load();
-            },
-          ),
           PopupMenuButton<int>(
             tooltip: 'Сортировка',
             icon: const Icon(Icons.sort),

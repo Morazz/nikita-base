@@ -56,7 +56,7 @@ class Part {
     id: m['id'], name: m['name'],
     article: m['article'], manufacturer: m['manufacturer'], comment: m['comment'],
     unit: m['unit'] ?? 'шт', stock: m['stock'] ?? 0,
-    isBearing: m['is_bearing'] ?? false,
+    isBearing: m['is_bearing'] == true || m['is_bearing'] == 1,
     bearingType: m['bearing_type'],
     innerD: (m['inner_d'] as num?)?.toDouble(),
     outerD: (m['outer_d'] as num?)?.toDouble(),
