@@ -136,9 +136,11 @@ class _State extends State<AddPartScreen> {
       try {
         await supabase.storage.from('photos').uploadBinary(path, bytes);
         await supabase.from('photos').insert(photoRow);
-      } catch (_) {
-        LocalDb.pendingPhotos.put(path, bytes);
-        SyncService.queue('photos', 'insert', photoRow);
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Фото не сохранилось: $err')));
+        }
       }
     }
     if (mounted) Navigator.pop(context);

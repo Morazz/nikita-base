@@ -123,10 +123,11 @@ class _State extends State<AddEquipmentScreen> {
       try {
         await supabase.storage.from('photos').uploadBinary(path, bytes);
         await supabase.from('photos').insert(photoRow);
-      } catch (_) {
-        // офлайн: фото ждёт выгрузки, запись о фото уйдёт в очередь
-        LocalDb.pendingPhotos.put(path, bytes);
-        SyncService.queue('photos', 'insert', photoRow);
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Фото не сохранилось: $err')));
+        }
       }
     }
     if (mounted) Navigator.pop(context);
@@ -137,7 +138,7 @@ class _State extends State<AddEquipmentScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Редактировать' : 'Новое оборудование')),
             body: Align(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.center,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: _error != null && _sites.isEmpty

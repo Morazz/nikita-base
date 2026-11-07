@@ -5,9 +5,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Локальная SQLite-база. Полностью автономная, интернет не нужен.
-// Все данные лежат в <папка программы>\data: база, фото — в одном месте.
+// Все данные лежат в <папка программы>\data: база, фото, документы — в одном месте.
 class LocalSql {
   static Database? _db;
+  static Future<Database>? _opening; // защита от параллельного открытия
   static Directory? _dataDir;
   static Directory? _photoDir;
 
@@ -52,13 +53,26 @@ class LocalSql {
     } catch (_) {}
   }
 
+  // Единое соединение: параллельные вызовы ждут одно открытие
   static Future<Database> db() async {
     if (_db != null) return _db!;
+    if (_opening != null) return _opening!;
+    _opening = _openDb();
+    try {
+      _db = await _opening!;
+      return _db!;
+    } finally {
+      _opening = null;
+    }
+  }
+
+  static Future<Database> _openDb() async {
     final data = await dataDir();
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    _db = await databaseFactory.openDatabase(p.join(data.path, 'oborudovanie.db'));
-    await _db!.execute('''
+    final db =
+        await databaseFactory.openDatabase(p.join(data.path, 'oborudovanie.db'));
+    await db.execute('''
       create table if not exists sites (
         id text primary key, name text not null unique, note text, created_at text
       );
@@ -79,6 +93,10 @@ class LocalSql {
         kind text not null, storage_path text not null,
         position integer not null default 0, created_at text
       );
+      create table if not exists documents (
+        id text primary key, equipment_id text not null, name text not null,
+        storage_path text not null, size integer, created_at text
+      );
       create table if not exists machine_parts (
         equipment_id text not null, part_id text not null,
         created_at text, primary key (equipment_id, part_id)
@@ -97,10 +115,6 @@ class LocalSql {
         repair_id text not null, part_id text not null, qty integer not null,
         primary key (repair_id, part_id)
       );
-      create table if not exists documents (
-        id text primary key, equipment_id text not null, name text not null,
-        storage_path text not null, size integer, created_at text
-      );
       create view if not exists part_stock as
         select p.id as part_id,
           coalesce(sum(case m.type when 'in' then m.qty else -m.qty end), 0) as stock
@@ -116,7 +130,7 @@ class LocalSql {
     ''');
 
     // наследие ранних версий: записи с пустым id восстанавливаем по rowid
-    await _db!.execute('''
+    await db.execute('''
       update equipment set id = 'fix-' || rowid where id is null;
       update parts set id = 'fix-' || rowid where id is null;
       update photos set id = 'fix-' || rowid where id is null;
@@ -129,14 +143,14 @@ class LocalSql {
     var i = 0;
     for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
       i++;
-      await _db!.rawInsert(
+      await db.rawInsert(
           'insert or ignore into sites (id, name, created_at) values (?, ?, ?)',
           ['seed-$i', name, now]);
     }
-    return _db!;
+    return db;
   }
 
-  // Закрыть соединение (перед копированием/заменой файла базы)
+  // Закрыть соединение (перед заменой файла базы при импорте)
   static Future<void> close() async {
     final d = _db;
     _db = null;
@@ -166,7 +180,6 @@ class LocalSql {
 
   static Future<void> deleteEquipment(String id) async {
     final d = await db();
-    // файлы документов удаляем вместе с машиной
     final docs = await d.rawQuery(
         'select storage_path from documents where equipment_id=?', [id]);
     for (var row in docs) {

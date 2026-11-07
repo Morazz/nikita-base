@@ -430,16 +430,15 @@ class _State extends State<EquipmentDetailScreen> {
                       label: const Text('Ремонт'),
                     ),
                   ),
-                ]),
-                const SizedBox(height: 4),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _addDoc,
-                    icon: const Icon(Icons.attach_file, size: 18),
-                    label: Text('Документ · ${_docs.length}'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _addDoc,
+                      icon: const Icon(Icons.attach_file, size: 18),
+                      label: const Text('Документ'),
+                    ),
                   ),
-                ),
+                ]),
                 if (_docs.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text('Документы · ${_docs.length}',

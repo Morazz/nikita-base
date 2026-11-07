@@ -1,21 +1,16 @@
 import 'local_db.dart';
 import 'supabase_client.dart';
 
-// Синхронизация: сначала отправляем накопленные изменения (outbox), потом
-// подтягиваем свежие данные из облака в локальный кэш.
+// Локальное приложение — синхронизации с облаком нет.
+// Все данные пишутся сразу в локальную базу; при ошибке она
+// всплывает на экран (см. глобальный обработчик в main.dart).
+// Имя класса и методы сохранены, чтобы не менять экраны.
 class SyncService {
-  static bool _running = false;
-
+  // Обновить локальный кэш (Hive) из базы — вызывается при старте/смене вкладки
   static Future<void> syncAll() async {
-    if (_running) return;
-    _running = true;
     try {
-      await pushOutbox();
       await pullAll();
-    } catch (_) {
-      // нет сети — просто остаёмся на локальных данных
-    }
-    _running = false;
+    } catch (_) {}
   }
 
   static Future<void> pullAll() async {
@@ -46,88 +41,26 @@ class SyncService {
     LocalDb.replaceAll(LocalDb.movements, movements as List);
   }
 
-  static Future<void> pushOutbox() async {
-    final keys = LocalDb.outbox.keys.map((k) => k as int).toList()..sort();
-    for (var k in keys) {
-      final op = Map<String, dynamic>.from(LocalDb.outbox.get(k)!);
-      try {
-        await _apply(op);
-        LocalDb.outbox.delete(k);
-      } catch (_) {
-        break; // сеть пропала — остальное ждёт следующего раза
-      }
-    }
-    // выгружаем накопленные фото
-    for (var path in LocalDb.pendingPhotos.keys.toList()) {
-      try {
-        final bytes = LocalDb.pendingPhotos.get(path)!;
-        await supabase.storage.from('photos').uploadBinary(path, bytes);
-        LocalDb.pendingPhotos.delete(path);
-      } catch (_) {
-        break;
-      }
-    }
-  }
+  static Future<void> pushOutbox() async {}
 
-  static Future<void> _apply(Map<String, dynamic> op) async {
-    final table = op['table'] as String;
-    final data = Map<String, dynamic>.from(op['data'] as Map);
-    switch (op['op'] as String) {
-      case 'insert':
-        await supabase.from(table).insert(data);
-      case 'update':
-        await supabase.from(table).update(data).eq('id', op['id']);
-      case 'delete':
-        await supabase.rpc(op['fn'] as String, params: {'p_id': op['id']});
-    }
-  }
-
-  // Поставить операцию в очередь (вызывается при неудачной записи в сеть)
-  static void queue(String table, String op, Map<String, dynamic> data,
-      {String? id, String? fn}) {
-    LocalDb.outbox.put(LocalDb.nextOutboxKey(), {
-      'table': table, 'op': op, 'data': data, 'id': id, 'fn': fn,
-    });
-  }
-
-  // Ошибки данных (не «офлайн») — не кладём в очередь, а пробрасываем
-  static bool _isDataError(Object e) {
-    final msg = e.toString();
-    return msg.contains('Недостаточно') ||
-        msg.contains('UNIQUE constraint') ||
-        msg.contains('not null') ||
-        msg.contains('CHECK constraint');
-  }
-
-  // Сохранить в сеть; при неудаче — поставить в очередь (true = было в offline)
+  // Сохранить в базу. Ошибки (в т.ч. недостаток на складе) — наружу.
+  // Возвращает false (флаг "offline" оставлен для совместимости вызовов).
   static Future<bool> saveOrQueue(String table, Map<String, dynamic> data,
       {String? updateId}) async {
-    try {
-      if (updateId != null) {
-        await supabase.from(table).update(data).eq('id', updateId);
-      } else {
-        await supabase.from(table).insert(data);
-      }
-      return false;
-    } catch (e) {
-      if (_isDataError(e)) rethrow;
-      if (updateId != null) {
-        queue(table, 'update', data, id: updateId);
-      } else {
-        queue(table, 'insert', data);
-      }
-      return true;
+    if (updateId != null) {
+      await supabase.from(table).update(data).eq('id', updateId);
+    } else {
+      await supabase.from(table).insert(data);
     }
+    return false;
   }
 
-  // Удалить в сети; при неудаче — поставить в очередь
   static Future<bool> deleteOrQueue(String fn, String id) async {
-    try {
-      await supabase.rpc(fn, params: {'p_id': id});
-      return false;
-    } catch (_) {
-      queue('', 'delete', {}, id: id, fn: fn);
-      return true;
-    }
+    await supabase.rpc(fn, params: {'p_id': id});
+    return false;
   }
+
+  // Очередь больше не используется — оставлено как пустышка
+  static void queue(String table, String op, Map<String, dynamic> data,
+      {String? id, String? fn}) {}
 }
