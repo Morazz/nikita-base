@@ -3,14 +3,14 @@ import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'local_sql.dart';
 
 // Экспорт/импорт базы: SQLite-файл + папка фото в один zip
 class BackupService {
   static Future<String?> exportBackup(BuildContext context) async {
-    final docs = await getApplicationDocumentsDirectory();
-    final dbFile = File('${docs.path}/oborudovanie.db');
+    final data = await LocalSql.dataDir();
+    final dbFile = File(p.join(data.path, 'oborudovanie.db'));
     if (!await dbFile.exists()) return null;
 
     final ts = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
@@ -25,10 +25,7 @@ class BackupService {
       final encoder = ZipFileEncoder();
       encoder.create(picked);
       encoder.addFile(dbFile, 'oborudovanie.db');
-      final photoDir = Directory('${docs.path}/oborudovanie_photos');
-      if (await photoDir.exists()) {
-        await encoder.addDirectory(photoDir, includeDirName: false);
-      }
+      await encoder.addDirectory(LocalSql.photoDir, includeDirName: false);
       encoder.close();
       return picked;
     } finally {
@@ -61,14 +58,13 @@ class BackupService {
     }
     if (dbEntry == null) return false; // не наш архив
 
-    final docs = await getApplicationDocumentsDirectory();
     await LocalSql.close();
     try {
       // база
-      await File('${docs.path}/oborudovanie.db')
+      await File(p.join(data.path, 'oborudovanie.db'))
           .writeAsBytes(dbEntry.content as List<int>);
       // фото: очистить и распаковать заново
-      final photoDir = Directory('${docs.path}/oborudovanie_photos');
+      final photoDir = LocalSql.photoDir;
       if (await photoDir.exists()) await photoDir.delete(recursive: true);
       await photoDir.create(recursive: true);
       for (var f in archive.files) {

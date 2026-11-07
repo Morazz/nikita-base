@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'local_db.dart';
+import 'local_sql.dart';
 import 'screens/home_screen.dart';
 import 'sync_service.dart';
 
@@ -14,8 +14,8 @@ final navigatorKey = GlobalKey<NavigatorState>();
 // Полный стек пишется в Документы\oborudovanie_errors.log
 void showAppError(Object error, [StackTrace? stack]) async {
   try {
-    final docs = await getApplicationDocumentsDirectory();
-    final f = File('${docs.path}/oborudovanie_errors.log');
+    final data = await LocalSql.dataDir();
+    final f = File('${data.path}/oborudovanie_errors.log');
     await f.writeAsString(
         '${DateTime.now()}\n$error\n${stack ?? StackTrace.current}\n\n',
         mode: FileMode.append);
@@ -55,7 +55,8 @@ Future<void> main() async {
     if (!kDebugMode) showAppError(error, stack);
     return true;
   };
-  await LocalDb.init();
+  final dataDir = await LocalSql.dataDir();
+  await LocalDb.init(path: dataDir.path);
   final prefs = await SharedPreferences.getInstance();
   themeModeNotifier.value = switch (prefs.getString('theme')) {
     'light' => ThemeMode.light,

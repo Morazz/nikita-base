@@ -15,8 +15,13 @@ class LocalDb {
   static late Box<Map<dynamic, dynamic>> outbox;
   static late Box<Uint8List> pendingPhotos;
 
-  static Future<void> init() async {
-    await Hive.initFlutter();
+  // path — папка данных рядом с программой; без него — стандартное место ОС
+  static Future<void> init({String? path}) async {
+    if (path != null) {
+      Hive.init(path);
+    } else {
+      await Hive.initFlutter();
+    }
     sites = await Hive.openBox('sites');
     equipment = await Hive.openBox('equipment');
     parts = await Hive.openBox('parts');

@@ -1,21 +1,63 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Локальная SQLite-база. Полностью автономная, интернет не нужен.
+// Все данные лежат в <папка программы>\data: база, фото — в одном месте.
 class LocalSql {
   static Database? _db;
+  static Directory? _dataDir;
   static Directory? _photoDir;
+
+  // Папка данных рядом с exe (создаётся при первом запуске)
+  static Future<Directory> dataDir() async {
+    if (_dataDir != null) return _dataDir!;
+    Directory base;
+    if (kIsWeb) {
+      base = Directory.current;
+    } else {
+      base = Directory(p.dirname(Platform.resolvedExecutable));
+    }
+    final dir = Directory(p.join(base.path, 'data'));
+    await dir.create(recursive: true);
+    _dataDir = dir;
+    _photoDir = Directory(p.join(dir.path, 'photos'));
+    await _photoDir!.create(recursive: true);
+    await _migrateFromDocuments();
+    return dir;
+  }
+
+  // Перенос данных из старого места (Документы), если нового ещё нет
+  static Future<void> _migrateFromDocuments() async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final oldDb = File(p.join(docs.path, 'oborudovanie.db'));
+      final newDb = File(p.join(_dataDir!.path, 'oborudovanie.db'));
+      if (await oldDb.exists() && !await newDb.exists()) {
+        await oldDb.copy(newDb.path);
+        final oldPhotos = Directory(p.join(docs.path, 'oborudovanie_photos'));
+        if (await oldPhotos.exists()) {
+          await for (var f in oldPhotos.list(recursive: true)) {
+            if (f is File) {
+              final rel = p.relative(f.path, from: oldPhotos.path);
+              final out = File(p.join(_photoDir!.path, rel));
+              await out.parent.create(recursive: true);
+              await f.copy(out.path);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
   static Future<Database> db() async {
     if (_db != null) return _db!;
+    final data = await dataDir();
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    final docs = await getApplicationDocumentsDirectory();
-    _photoDir = Directory(p.join(docs.path, 'oborudovanie_photos'));
-    await _photoDir!.create(recursive: true);
-    _db = await databaseFactory.openDatabase(p.join(docs.path, 'oborudovanie.db'));
+    _db = await databaseFactory.openDatabase(p.join(data.path, 'oborudovanie.db'));
     await _db!.execute('''
       create table if not exists sites (
         id text primary key, name text not null unique, note text, created_at text
@@ -70,32 +112,34 @@ class LocalSql {
     ''');
 
     // наследие ранних версий: записи с пустым id восстанавливаем по rowid
-    // (файлы фото не трогаем — только чиним ссылки в базе)
-    await _db!.execute("""
+    await _db!.execute('''
       update equipment set id = 'fix-' || rowid where id is null;
       update parts set id = 'fix-' || rowid where id is null;
       update photos set id = 'fix-' || rowid where id is null;
       update part_movements set id = 'fix-' || rowid where id is null;
       update repair_records set id = 'fix-' || rowid where id is null;
-    """);
+    ''');
 
+    // площадки "INSERT OR IGNORE" — безопасно при параллельном открытии
     final now = DateTime.now().toIso8601String();
     var i = 0;
     for (var name in ['Калинина', 'Корженевского', 'Инженерная']) {
       i++;
-        await _db!.rawInsert(
+      await _db!.rawInsert(
           'insert or ignore into sites (id, name, created_at) values (?, ?, ?)',
           ['seed-$i', name, now]);
     }
     return _db!;
   }
 
-  // Закрыть соединение (нужно перед копированием/заменой файла базы)
+  // Закрыть соединение (перед копированием/заменой файла базы)
   static Future<void> close() async {
     final d = _db;
     _db = null;
     if (d != null) await d.close();
   }
+
+  static Directory get photoDir => _photoDir!;
 
   static File photoFile(String storagePath) =>
       File(p.join(_photoDir!.path, storagePath));
