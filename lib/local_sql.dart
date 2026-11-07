@@ -97,6 +97,10 @@ class LocalSql {
         repair_id text not null, part_id text not null, qty integer not null,
         primary key (repair_id, part_id)
       );
+      create table if not exists documents (
+        id text primary key, equipment_id text not null, name text not null,
+        storage_path text not null, size integer, created_at text
+      );
       create view if not exists part_stock as
         select p.id as part_id,
           coalesce(sum(case m.type when 'in' then m.qty else -m.qty end), 0) as stock
@@ -162,6 +166,13 @@ class LocalSql {
 
   static Future<void> deleteEquipment(String id) async {
     final d = await db();
+    // файлы документов удаляем вместе с машиной
+    final docs = await d.rawQuery(
+        'select storage_path from documents where equipment_id=?', [id]);
+    for (var row in docs) {
+      await removePhoto(row['storage_path'] as String);
+    }
+    await d.delete('documents', where: 'equipment_id=?', whereArgs: [id]);
     await d.delete('photos', where: "owner_type='equipment' and owner_id=?", whereArgs: [id]);
     await d.delete('part_movements', where: 'equipment_id=?', whereArgs: [id]);
     final repairs = await d.rawQuery('select id from repair_records where equipment_id=?', [id]);

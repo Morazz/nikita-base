@@ -1,5 +1,11 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../local_db.dart';
+import '../local_sql.dart';
 import '../models.dart';
 import '../supabase_client.dart';
 import '../sync_service.dart';
@@ -23,6 +29,7 @@ class _State extends State<EquipmentDetailScreen> {
   List<Photo> _photos = [];
   List<Part> _parts = [];
   List<Part> _allParts = [];
+  List<Document> _docs = [];
   List<Map<String, dynamic>> _repairs = [];
   bool _loading = true;
   bool _offline = false;
@@ -59,6 +66,7 @@ class _State extends State<EquipmentDetailScreen> {
       _repairs = LocalDb.all(LocalDb.repairs)
           .where((r) => r['equipment_id'] == e.id).toList()
         ..sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+      _docs = [];
       _allParts = LocalDb.all(LocalDb.parts).map((x) => Part.fromMap(x)).toList();
       _loading = false;
     });
@@ -73,8 +81,11 @@ class _State extends State<EquipmentDetailScreen> {
           .select('*, repair_parts(qty, parts(name, unit))')
           .eq('equipment_id', e.id).order('date', ascending: false);
       final allParts = await supabase.from('parts').select().order('name');
+      final docs = await supabase.from('documents')
+          .select().eq('equipment_id', e.id).order('name');
       setState(() {
         _offline = false;
+        _docs = (docs as List).map((x) => Document.fromMap(x)).toList();
         _photos = (photos as List).map((x) => Photo.fromMap(x)).toList();
         _parts = (linked as List).map((x) {
           final p = Map<String, dynamic>.from(x['parts'] as Map);
@@ -254,6 +265,78 @@ class _State extends State<EquipmentDetailScreen> {
     _load();
   }
 
+  Future<void> _addDoc() async {
+    try {
+      final res = await FilePicker.platform.pickFiles();
+      final fp = res?.files.single;
+      if (fp?.path == null) return;
+      final id = const Uuid().v4();
+      final safe = fp!.name.replaceAll(RegExp(r'[^\w.\-() ]'), '_');
+      final rel = 'docs/${e.id}/$id-$safe';
+      final data = await LocalSql.dataDir();
+      final dest = File(p.join(data.path, rel));
+      await dest.parent.create(recursive: true);
+      await File(fp.path!).copy(dest.path);
+      await SyncService.saveOrQueue('documents', {
+        'id': id,
+        'equipment_id': e.id,
+        'name': fp.name,
+        'storage_path': rel,
+        'size': fp.size,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      _load();
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось добавить документ: $err')));
+    }
+  }
+
+  Future<void> _openDoc(Document doc) async {
+    final data = await LocalSql.dataDir();
+    final path = p.join(data.path, doc.storagePath);
+    final res = await OpenFile.open(path);
+    if (res.type != ResultType.done && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось открыть: ${res.message}')));
+    }
+  }
+
+  Future<void> _deleteDoc(Document doc) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить документ?'),
+        content: Text(doc.name),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await supabase.from('documents').delete().eq('id', doc.id);
+    } catch (_) {}
+    final data = await LocalSql.dataDir();
+    final f = File(p.join(data.path, doc.storagePath));
+    if (await f.exists()) await f.delete();
+    _load();
+  }
+
+  IconData _docIcon(String ext) => switch (ext) {
+        'pdf' => Icons.picture_as_pdf,
+        'doc' || 'docx' || 'rtf' => Icons.description,
+        'xls' || 'xlsx' || 'csv' => Icons.table_chart,
+        'png' || 'jpg' || 'jpeg' || 'bmp' => Icons.image,
+        'dwg' || 'dxf' => Icons.architecture,
+        _ => Icons.insert_drive_file,
+      };
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -348,6 +431,32 @@ class _State extends State<EquipmentDetailScreen> {
                     ),
                   ),
                 ]),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _addDoc,
+                    icon: const Icon(Icons.attach_file, size: 18),
+                    label: Text('Документ · ${_docs.length}'),
+                  ),
+                ),
+                if (_docs.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Документы · ${_docs.length}',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  ..._docs.map((doc) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(_docIcon(doc.ext), size: 20),
+                        title: Text(doc.name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => _deleteDoc(doc),
+                        ),
+                        onTap: () => _openDoc(doc),
+                      )),
+                ],
                 const SizedBox(height: 8),
                 Text('Детали · ${_parts.length}',
                     style: Theme.of(context).textTheme.titleMedium),

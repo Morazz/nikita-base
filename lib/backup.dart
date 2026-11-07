@@ -26,6 +26,10 @@ class BackupService {
       encoder.create(picked);
       encoder.addFile(dbFile, 'oborudovanie.db');
       await encoder.addDirectory(LocalSql.photoDir, includeDirName: false);
+      final docsDir = Directory(p.join(data.path, 'docs'));
+      if (await docsDir.exists()) {
+        await encoder.addDirectory(docsDir, includeDirName: false);
+      }
       encoder.close();
       return picked;
     } finally {
@@ -68,6 +72,9 @@ class BackupService {
       final photoDir = LocalSql.photoDir;
       if (await photoDir.exists()) await photoDir.delete(recursive: true);
       await photoDir.create(recursive: true);
+      final docsDir = Directory(p.join(data.path, 'docs'));
+      if (await docsDir.exists()) await docsDir.delete(recursive: true);
+      await docsDir.create(recursive: true);
       for (var f in archive.files) {
         // защита от path traversal (имена вида ../../)
         final name = f.name.replaceAll('\\', '/');

@@ -122,3 +122,18 @@ Future<Map<String, int>> fetchStock() async {
       (r['part_id'] as String): (r['stock'] as num).toInt(),
   };
 }
+
+class Document {
+  final String id;
+  final String equipmentId;
+  final String name;          // исходное имя файла
+  final String storagePath;   // путь относительно папки data
+  final int? size;            // байт
+  Document({required this.id, required this.equipmentId,
+            required this.name, required this.storagePath, this.size});
+  factory Document.fromMap(Map<String, dynamic> m) => Document(
+    id: m['id'], equipmentId: m['equipment_id'], name: m['name'],
+    storagePath: m['storage_path'], size: m['size'],
+  );
+  String get ext => name.contains('.') ? name.split('.').last.toLowerCase() : '';
+}
