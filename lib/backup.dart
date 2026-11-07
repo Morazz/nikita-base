@@ -58,6 +58,7 @@ class BackupService {
     }
     if (dbEntry == null) return false; // не наш архив
 
+    final data = await LocalSql.dataDir();
     await LocalSql.close();
     try {
       // база
