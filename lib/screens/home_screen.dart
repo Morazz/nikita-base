@@ -37,7 +37,7 @@ class _State extends State<HomeScreen> {
               },
               labelType: NavigationRailLabelType.all,
               trailing: Column(children: [
-                const SizedBox(height: 16),
+                const Expanded(child: SizedBox()),
                 IconButton(
                   tooltip: 'Поиск по всей базе (Ctrl+K)',
                   icon: const Icon(Icons.search),

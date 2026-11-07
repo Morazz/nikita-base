@@ -84,6 +84,12 @@ class LocalQuery implements Future<List<dynamic>> {
     return this;
   }
 
+  // SQLite (ffi) не принимает Dart-bool — преобразуем в 0/1
+  static Map<String, dynamic> _dbValues(Map<String, dynamic> row) => {
+        for (var e in row.entries)
+          e.key: e.value is bool ? (e.value as bool ? 1 : 0) : e.value,
+      };
+
   Future<Map<String, dynamic>> single() async {
     final rows = await _run();
     if (rows.isEmpty) throw StateError('Запись не найдена в $table');
@@ -134,11 +140,11 @@ class LocalQuery implements Future<List<dynamic>> {
     Map<String, dynamic>? inserted;
 
     if (_opType == 'insert') {
-      inserted = _opData!;
+      inserted = _dbValues(_opData!);
       inserted['created_at'] ??= DateTime.now().toIso8601String();
       await d.insert(table, inserted);
     } else if (_opType == 'update') {
-      await d.update(table, _opData!,
+      await d.update(table, _dbValues(_opData!),
           where: _where.isEmpty ? null : _where.substring(7),
           whereArgs: _whereArgs);
       if (_eq.isNotEmpty) return [];
