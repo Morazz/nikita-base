@@ -178,20 +178,46 @@ class LocalSql {
     if (await f.exists()) await f.delete();
   }
 
+  // удалить файл по пути относительно папки data (документы и т.п.)
+  static Future<void> removeDataFile(String relativePath) async {
+    final data = await dataDir();
+    final f = File(p.join(data.path, relativePath));
+    if (await f.exists()) await f.delete();
+  }
+
+  // удаление файла, которое не должно ронять основную операцию
+  static Future<void> _safeRemove(Future<void> Function() fn) async {
+    try {
+      await fn();
+    } catch (_) {}
+  }
+
   static Future<void> deleteEquipment(String id) async {
     final d = await db();
+    // файлы документов (лежат в data\docs)
     final docs = await d.rawQuery(
         'select storage_path from documents where equipment_id=?', [id]);
     for (var row in docs) {
-      await removePhoto(row['storage_path'] as String);
+      await _safeRemove(() => removeDataFile(row['storage_path'] as String));
     }
     await d.delete('documents', where: 'equipment_id=?', whereArgs: [id]);
+    // файлы фото машины и её ремонтов (фото деталей не трогаем — детали остаются)
+    final photos = await d.rawQuery("""
+      select storage_path from photos
+      where (owner_type='equipment' and owner_id=?)
+         or (owner_type='repair' and owner_id in
+             (select id from repair_records where equipment_id=?))
+    """, [id, id]);
+    for (var row in photos) {
+      await _safeRemove(() => removePhoto(row['storage_path'] as String));
+    }
     await d.delete('photos', where: "owner_type='equipment' and owner_id=?", whereArgs: [id]);
     await d.delete('part_movements', where: 'equipment_id=?', whereArgs: [id]);
     final repairs = await d.rawQuery('select id from repair_records where equipment_id=?', [id]);
     for (var r in repairs) {
       await d.delete('repair_parts', where: 'repair_id=?', whereArgs: [r['id']]);
       await d.delete('part_movements', where: 'repair_id=?', whereArgs: [r['id']]);
+      await d.delete('photos', where: "owner_type='repair' and owner_id=?", whereArgs: [r['id']]);
     }
     await d.delete('repair_records', where: 'equipment_id=?', whereArgs: [id]);
     await d.delete('machine_parts', where: 'equipment_id=?', whereArgs: [id]);
@@ -200,6 +226,11 @@ class LocalSql {
 
   static Future<void> deletePart(String id) async {
     final d = await db();
+    final photos = await d.rawQuery(
+        "select storage_path from photos where owner_type='part' and owner_id=?", [id]);
+    for (var row in photos) {
+      await _safeRemove(() => removePhoto(row['storage_path'] as String));
+    }
     await d.delete('photos', where: "owner_type='part' and owner_id=?", whereArgs: [id]);
     await d.delete('part_movements', where: 'part_id=?', whereArgs: [id]);
     await d.delete('repair_parts', where: 'part_id=?', whereArgs: [id]);
@@ -209,6 +240,11 @@ class LocalSql {
 
   static Future<void> deleteRepair(String id) async {
     final d = await db();
+    final photos = await d.rawQuery(
+        "select storage_path from photos where owner_type='repair' and owner_id=?", [id]);
+    for (var row in photos) {
+      await _safeRemove(() => removePhoto(row['storage_path'] as String));
+    }
     await d.delete('photos', where: "owner_type='repair' and owner_id=?", whereArgs: [id]);
     await d.delete('part_movements', where: 'repair_id=?', whereArgs: [id]);
     await d.delete('repair_parts', where: 'repair_id=?', whereArgs: [id]);
