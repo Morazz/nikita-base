@@ -60,12 +60,9 @@ class _State extends State<EquipmentListScreen> {
   }
 
   void _onDetailChanged() {
-    final id = _selected?.id;
-    _load().then((_) {
-      if (id == null) return;
-      final i = _equipment.indexWhere((x) => x.id == id && !x.isArchived);
-      setState(() => _selected = i >= 0 ? _equipment[i] : null);
-    });
+    // карточку убираем сразу — не даём ей перестраиваться на удалённой машине
+    setState(() => _selected = null);
+    _load();
   }
 
   void _openDetail(Equipment e, bool wide) {

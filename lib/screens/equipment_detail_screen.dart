@@ -139,12 +139,20 @@ class _State extends State<EquipmentDetailScreen> {
       ),
     );
     if (ok != true) return;
-    final wasOffline = await SyncService.deleteOrQueue('delete_equipment', e.id);
-    if (wasOffline) {
-      LocalDb.equipment.delete(e.id);
-      _offlineNote();
+    try {
+      await SyncService.deleteOrQueue('delete_equipment', e.id);
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Не удалось удалить: $err')));
+      }
+      return;
     }
-    if (mounted) Navigator.pop(context);
+    if (widget.embedded) {
+      widget.onChanged?.call();
+    } else if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _addPart() async {

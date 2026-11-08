@@ -83,12 +83,8 @@ class _State extends State<PartsListScreen> {
   }
 
   void _onDetailChanged() {
-    final id = _selected?.id;
-    _load().then((_) {
-      if (id == null) return;
-      final i = _parts.indexWhere((x) => x.id == id);
-      setState(() => _selected = i >= 0 ? _parts[i] : null);
-    });
+    setState(() => _selected = null);
+    _load();
   }
 
   void _openDetail(Part p, bool wide) {
