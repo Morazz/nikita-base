@@ -20,29 +20,35 @@ void showAppError(Object error, [StackTrace? stack]) async {
         '${DateTime.now()}\n$error\n${stack ?? StackTrace.current}\n\n',
         mode: FileMode.append);
   } catch (_) {}
-  final ctx = navigatorKey.currentContext;
-  if (ctx == null || !ctx.mounted) return;
-  final msg = error.toString();
-  showDialog(
-    context: ctx,
-    builder: (dctx) => AlertDialog(
-      title: const Text('Ошибка'),
-      content: SingleChildScrollView(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, children: [
-          Text(msg.length > 400 ? '${msg.substring(0, 400)}…' : msg),
-          const SizedBox(height: 8),
-          Text('Подробности: Документы\\oborudovanie_errors.log',
-              style: Theme.of(ctx).textTheme.bodySmall),
-        ]),
-      ),
-      actions: [
-        FilledButton(
-            onPressed: () => Navigator.pop(dctx),
-            child: const Text('Понятно')),
-      ],
-    ),
-  );
+  // Диалог показываем только после завершения текущего кадра:
+  // показ посреди сборки экрана роняет рендер (чёрный экран)
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    try {
+      final ctx = navigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      final msg = error.toString();
+      showDialog(
+        context: ctx,
+        builder: (dctx) => AlertDialog(
+          title: const Text('Ошибка'),
+          content: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min, children: [
+              Text(msg.length > 400 ? '${msg.substring(0, 400)}…' : msg),
+              const SizedBox(height: 8),
+              Text('Подробности: папка программы -> data -> oborudovanie_errors.log',
+                  style: Theme.of(ctx).textTheme.bodySmall),
+            ]),
+          ),
+          actions: [
+            FilledButton(
+                onPressed: () => Navigator.pop(dctx),
+                child: const Text('Понятно')),
+          ],
+        ),
+      );
+    } catch (_) {}
+  });
 }
 
 Future<void> main() async {

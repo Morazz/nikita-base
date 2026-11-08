@@ -33,6 +33,7 @@ class _State extends State<PartDetailScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     // 1. мгновенно из локального кэша
     setState(() {
       _photos = LocalDb.all(LocalDb.photos)
@@ -63,6 +64,7 @@ class _State extends State<PartDetailScreen> {
           .select('equipment(name, model)').eq('part_id', p.id);
       final stock = await supabase.from('part_stock')
           .select().eq('part_id', p.id).maybeSingle();
+      if (!mounted) return;
       setState(() {
         _offline = false;
         _photos = (photos as List).map((e) => Photo.fromMap(e)).toList();
